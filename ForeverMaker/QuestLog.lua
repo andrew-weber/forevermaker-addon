@@ -133,7 +133,15 @@ function ForeverMaker.RefreshLog()
 		end
 		local quest = ForeverMakerDB.quests[id]
 		button.questId = id
-		button.label:SetText(quest.title or "")
+		local title = quest.title or ""
+		local limitText = ForeverMaker.LevelLimitText(quest)
+		local past = limitText and UnitLevel and not ForeverMaker.MeetsLevelLimit(quest, UnitLevel("player"))
+		if past then
+			title = "|cffff4040Past " .. limitText .. "|r  " .. title
+		elseif limitText then
+			title = "|cffffd100" .. limitText .. "|r  " .. title
+		end
+		button.label:SetText(title)
 		if id == ForeverMaker.selectedId then
 			button:LockHighlight()
 		else
@@ -161,6 +169,28 @@ function ForeverMaker.RefreshLog()
 	local child = log.detailChild
 	log.title:SetText(quest.title or "")
 	local y = -12 - TextHeight(log.title, quest.title) - 10
+	local limitText = ForeverMaker.LevelLimitText(quest)
+	if limitText then
+		log.constraintHeader:Show()
+		log.constraintNote:Show()
+		log.constraintLine:Show()
+		local past = UnitLevel and not ForeverMaker.MeetsLevelLimit(quest, UnitLevel("player"))
+		if past then
+			log.constraintLine:SetText("|cffff4040" .. limitText .. " — you are past this limit|r")
+		else
+			log.constraintLine:SetText("|cffffd100" .. limitText .. "|r")
+		end
+		Place(log.constraintHeader, child, y)
+		y = y - TextHeight(log.constraintHeader, "Constraints") - 4
+		Place(log.constraintNote, child, y)
+		y = y - TextHeight(log.constraintNote, "Keep within these limits while completing the quest.") - 4
+		Place(log.constraintLine, child, y)
+		y = y - TextHeight(log.constraintLine, limitText) - 10
+	else
+		log.constraintHeader:Hide()
+		log.constraintNote:Hide()
+		log.constraintLine:Hide()
+	end
 	for i = 1, 20 do
 		local line = goalLines[i]
 		local goal = quest.goals[i]
@@ -299,6 +329,18 @@ local function BuildLog()
 		goalLines[i] = line
 	end
 
+	local constraintHeader = detailChild:CreateFontString(nil, "OVERLAY", "QuestTitleFont")
+	constraintHeader:SetJustifyH("LEFT")
+	constraintHeader:SetText("Constraints")
+	constraintHeader:Hide()
+	local constraintNote = detailChild:CreateFontString(nil, "OVERLAY", "QuestFont")
+	constraintNote:SetJustifyH("LEFT")
+	constraintNote:SetText("Keep within these limits while completing the quest.")
+	constraintNote:Hide()
+	local constraintLine = detailChild:CreateFontString(nil, "OVERLAY", "QuestFont")
+	constraintLine:SetJustifyH("LEFT")
+	constraintLine:Hide()
+
 	local descHeader = detailChild:CreateFontString(nil, "OVERLAY", "QuestTitleFont")
 	descHeader:SetJustifyH("LEFT")
 	descHeader:SetText("Description")
@@ -350,6 +392,9 @@ local function BuildLog()
 	frame.detail = detail
 	frame.detailChild = detailChild
 	frame.title = pageTitle
+	frame.constraintHeader = constraintHeader
+	frame.constraintNote = constraintNote
+	frame.constraintLine = constraintLine
 	frame.descHeader = descHeader
 	frame.desc = desc
 	frame.completed = completed
@@ -383,6 +428,13 @@ local function ShowImportPreview(quest)
 	importFrame.saveButton:Show()
 	importFrame.backButton:Show()
 	local lines = { quest.title, "" }
+	local limitText = ForeverMaker.LevelLimitText(quest)
+	if limitText then
+		lines[#lines + 1] = "Constraints"
+		lines[#lines + 1] = "Keep within these limits while completing the quest."
+		lines[#lines + 1] = limitText
+		lines[#lines + 1] = ""
+	end
 	for _, goal in ipairs(quest.goals) do
 		lines[#lines + 1] = goal.name .. ": 0/" .. goal.quantity
 	end
@@ -487,7 +539,12 @@ local function BuildImport()
 			log:Show()
 		end
 		ForeverMaker.RefreshLog()
-		Note(RESULT_TEXT[result] or "Quest saved.")
+		local saved = RESULT_TEXT[result] or "Quest saved."
+		local limitText = ForeverMaker.LevelLimitText(quest)
+		if limitText then
+			saved = saved .. " " .. limitText .. "."
+		end
+		Note(saved)
 	end)
 
 	local backButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")

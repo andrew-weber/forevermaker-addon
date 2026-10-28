@@ -28,6 +28,23 @@ function ForeverMaker.EnsureDB()
 		end
 	end
 	ForeverMakerDB.order = order
+	ForeverMaker.ReportClearedLimits(ForeverMakerDB)
+end
+
+function ForeverMaker.ReportClearedLimits(db)
+	local level = nil
+	if UnitLevel then
+		level = UnitLevel("player")
+	end
+	local dropped = ForeverMaker.EnforceSavedLimits(db, level)
+	if not DEFAULT_CHAT_FRAME then
+		return
+	end
+	for _, quest in ipairs(dropped) do
+		local label = ForeverMaker.LevelLimitText(quest) or "its level limit"
+		local title = type(quest.title) == "string" and quest.title or "A quest"
+		DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ForeverMaker:|r " .. title .. " was cleared. Finish it while " .. label .. ".")
+	end
 end
 
 function ForeverMaker.ThisCharacter()
@@ -41,8 +58,16 @@ end
 function ForeverMaker.OnPartyKill(_, victimGuid)
 	ForeverMaker.EnsureDB()
 	local creatureId = ForeverMaker.CreatureId(victimGuid)
-	local hits = ForeverMaker.CreditKill(ForeverMakerDB, creatureId, victimGuid)
+	local _, _, _, level = ForeverMaker.ThisCharacter()
+	local hits, blocked = ForeverMaker.CreditKill(ForeverMakerDB, creatureId, victimGuid, level)
 	if hits <= 0 then
+		if type(blocked) == "table" and DEFAULT_CHAT_FRAME then
+			for _, quest in ipairs(blocked) do
+				local label = ForeverMaker.LevelLimitText(quest) or "its level limit"
+				local title = type(quest.title) == "string" and quest.title or "That quest"
+				DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99ForeverMaker:|r " .. title .. " did not count that kill. It requires " .. label .. ".")
+			end
+		end
 		return
 	end
 	local when, name, realm, level = ForeverMaker.ThisCharacter()

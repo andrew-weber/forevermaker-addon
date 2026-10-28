@@ -51,6 +51,27 @@ local function WholeNumber(text, maxValue)
 	return value
 end
 
+local function ParseConstraint(rest, expectedPos)
+	local posText, kind, comparison, levelText = string.match(rest, "^(%d+)%s+(%a+)%s+(%S+)%s+(%d+)$")
+	if not posText then
+		return "A constraint line is missing a field."
+	end
+	local pos = WholeNumber(posText, 1)
+	local level = WholeNumber(levelText, 60)
+	if pos ~= expectedPos then
+		return "Constraint lines must stay in order, starting at 1."
+	end
+	if kind ~= "level" or comparison ~= "<" or not level or level < 2 then
+		return "A level limit must be below a level from 2 to 60."
+	end
+	return nil, {
+		pos = pos,
+		kind = kind,
+		comparison = comparison,
+		level = level,
+	}
+end
+
 local function ParseGoal(rest, expectedPos)
 	local posText, kind, qtyText, idType, gameText, name = string.match(rest, "^(%d+)%s+(%a+)%s+(%d+)%s+(%a+)%s+(%d+)%s+(.+)$")
 	if not posText then
@@ -115,7 +136,9 @@ function ForeverMaker.Parse(text)
 
 	local fields = {}
 	local goals = {}
+	local constraints = {}
 	local sawGoal = false
+	local sawConstraint = false
 	for i = 2, #lines do
 		local line = lines[i]
 		if line == "" then
@@ -123,14 +146,27 @@ function ForeverMaker.Parse(text)
 		end
 		local key, rest = string.match(line, "^(%S+)%s*(.*)$")
 		if key == "goal" then
+			if sawConstraint then
+				return nil, "Goals come before constraints."
+			end
 			sawGoal = true
 			local err, goal = ParseGoal(rest, #goals + 1)
 			if err then
 				return nil, err
 			end
 			goals[#goals + 1] = goal
+		elseif key == "constraint" then
+			if not sawGoal then
+				return nil, "Constraints come after the goals."
+			end
+			sawConstraint = true
+			local err, limit = ParseConstraint(rest, #constraints + 1)
+			if err then
+				return nil, err
+			end
+			constraints[#constraints + 1] = limit
 		else
-			if sawGoal then
+			if sawGoal or sawConstraint then
 				return nil, "That string has a line after the goals."
 			end
 			if key ~= "id" and key ~= "rev" and key ~= "title" and key ~= "desc" then
@@ -146,7 +182,7 @@ function ForeverMaker.Parse(text)
 	if fields.id == nil or fields.rev == nil or fields.title == nil or fields.desc == nil then
 		return nil, "That string is missing id, rev, title, or desc."
 	end
-	if not string.match(fields.id, UUID) then
+	if not string.match(fields.id, UUID) and not string.match(fields.id, "^[%w_%-][%w_%-][%w_%-][%w_%-][%w_%-][%w_%-][%w_%-][%w_%-]$") then
 		return nil, "That quest id is not one this addon can store."
 	end
 	local rev = WholeNumber(fields.rev, 1000000)
@@ -174,6 +210,7 @@ function ForeverMaker.Parse(text)
 		title = title,
 		desc = desc,
 		goals = goals,
+		constraints = constraints,
 	}
 end
 
@@ -204,6 +241,19 @@ local function CopyGoals(goals, previous, keepCounts)
 	return out
 end
 
+function ForeverMaker.LevelLimitText(quest)
+	local constraints = type(quest) == "table" and quest.constraints
+	if type(constraints) ~= "table" then
+		return nil
+	end
+	for _, limit in ipairs(constraints) do
+		if type(limit) == "table" and limit.kind == "level" and limit.comparison == "<" and type(limit.level) == "number" then
+			return "Level < " .. limit.level
+		end
+	end
+	return nil
+end
+
 function ForeverMaker.Apply(db, quest)
 	db.quests = db.quests or {}
 	db.order = db.order or {}
@@ -219,6 +269,7 @@ function ForeverMaker.Apply(db, quest)
 		title = quest.title,
 		desc = quest.desc,
 		goals = CopyGoals(quest.goals, existing and existing.goals, keepCounts),
+		constraints = quest.constraints,
 	}
 	local done = keepCounts and existing and existing.completed
 	if type(done) == "table" and type(done.at) == "number" and type(done.character) == "string" and type(done.level) == "number" and ForeverMaker.GoalsComplete(stored) then
