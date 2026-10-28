@@ -47,6 +47,20 @@ Check("kill uses npc", bad == "A kill goal uses npc.")
 _, bad = ForeverMaker.Parse("!FM:1!\nid nope\nrev 1\ntitle A\ndesc\ngoal 1 kill 1 npc 1 Boar\n")
 Check("bad id", bad == "That quest id is not one this addon can store.")
 
+local public = "!FM:1!\nid k3J8aQ_z\nrev 1\ntitle Boar trouble\ndesc Clear the field.\ngoal 1 kill 10 npc 708 Mangy Boar"
+quest, err = ForeverMaker.Parse(public)
+Check("public id", quest and quest.id == "k3J8aQ_z" and quest.title == "Boar trouble" and quest.desc == "Clear the field." and quest.goals[1].name == "Mangy Boar" and quest.goals[1].gameId == 708 and not err)
+
+local limited = public .. "\nconstraint 1 level < 5"
+quest, err = ForeverMaker.Parse(limited)
+Check("level limit", quest and quest.constraints[1].kind == "level" and quest.constraints[1].comparison == "<" and quest.constraints[1].level == 5 and ForeverMaker.LevelLimitText(quest) == "Level < 5" and not err)
+
+_, bad = ForeverMaker.Parse(public .. "\nconstraint 1 level < 1")
+Check("level one", bad == "A level limit must be below a level from 2 to 60.")
+
+_, bad = ForeverMaker.Parse(public .. "\nconstraint 1 timer < 10")
+Check("timer limit", bad == "A level limit must be below a level from 2 to 60.")
+
 _, bad = ForeverMaker.Parse("!FM:1!\nid 00000000-0000-4000-8000-000000000001\nrev 1\ntitle A\ndesc\ngoal 2 kill 1 npc 1 Boar\n")
 Check("goal order", bad == "Goal lines must stay in order, starting at 1.")
 
@@ -78,6 +92,19 @@ local guid = "Creature-0-5165-1-49-3098-000061FF60"
 Check("credit once", ForeverMaker.CreditKill(creditDb, 3098, guid) == 1 and creditDb.quests[id].goals[1].count == 1)
 Check("same death ignored", ForeverMaker.CreditKill(creditDb, 3098, guid) == 0 and creditDb.quests[id].goals[1].count == 1)
 Check("full goal stays full", ForeverMaker.CreditKill(creditDb, 3098, guid .. "b") == 0)
+
+local underTwo = ForeverMaker.Parse("!FM:1!\nid k3J8aQ_z\nrev 1\ntitle Trogg\ndesc\ngoal 1 kill 1 npc 708 Rockjaw Trogg\nconstraint 1 level < 2")
+Check("limit applied", ForeverMaker.Apply(creditDb, underTwo) == "saved")
+local limitedId = underTwo.id
+Check("level two misses", ForeverMaker.CreditKill(creditDb, 708, guid .. "c", 2) == 0 and creditDb.quests[limitedId].goals[1].count == 0)
+Check("level one counts", ForeverMaker.CreditKill(creditDb, 708, guid .. "d", 1) == 1 and creditDb.quests[limitedId].goals[1].count == 1)
+ForeverMaker.NoteCompletion(creditDb.quests[limitedId], 1700000000, "Daklulim", "Westfall", 2)
+Check("finish past the limit is refused", creditDb.quests[limitedId].completed == nil)
+ForeverMaker.NoteCompletion(creditDb.quests[limitedId], 1700000000, "Daklulim", "Westfall", 1)
+Check("finish under the limit is kept", creditDb.quests[limitedId].completed.level == 1)
+Check("later level keeps a legal finish", not ForeverMaker.DropIllegalCompletion(creditDb.quests[limitedId], 2) and creditDb.quests[limitedId].completed.level == 1)
+creditDb.quests[limitedId].completed.level = 2
+Check("saved finish past the limit is cleared", ForeverMaker.DropIllegalCompletion(creditDb.quests[limitedId], 2) and creditDb.quests[limitedId].completed == nil and creditDb.quests[limitedId].goals[1].count == 0)
 
 local finished = creditDb.quests[id]
 ForeverMaker.NoteCompletion(finished, 1700000000, "Daklulim", "Westfall", 4)

@@ -27,29 +27,57 @@ function ForeverMaker.CreatureId(guid)
 	return tonumber(parts[6])
 end
 
-function ForeverMaker.CreditKill(db, creatureId, victimGuid)
+function ForeverMaker.MeetsLevelLimit(quest, level)
+	local constraints = type(quest) == "table" and quest.constraints
+	if type(constraints) ~= "table" or #constraints == 0 then
+		return true
+	end
+	if type(level) ~= "number" then
+		return false
+	end
+	for _, limit in ipairs(constraints) do
+		if type(limit) ~= "table" or limit.kind ~= "level" or limit.comparison ~= "<" or type(limit.level) ~= "number" then
+			return false
+		end
+		if level >= limit.level then
+			return false
+		end
+	end
+	return true
+end
+
+function ForeverMaker.CreditKill(db, creatureId, victimGuid, level)
 	if type(db) ~= "table" or type(db.quests) ~= "table" or type(creatureId) ~= "number" then
-		return 0
+		return 0, {}
 	end
 	if type(victimGuid) == "string" then
 		if seen[victimGuid] then
-			return 0
+			return 0, {}
 		end
 		seen[victimGuid] = true
 	end
 
 	local hits = 0
+	local blocked = {}
 	for _, quest in pairs(db.quests) do
 		if type(quest) == "table" and type(quest.goals) == "table" then
+			local allowed = ForeverMaker.MeetsLevelLimit(quest, level)
+			local matched = false
 			for _, goal in ipairs(quest.goals) do
 				if goal.kind == "kill" and goal.gameId == creatureId and type(goal.count) == "number" and type(goal.quantity) == "number" and goal.count < goal.quantity then
-					goal.count = goal.count + 1
-					hits = hits + 1
+					matched = true
+					if allowed then
+						goal.count = goal.count + 1
+						hits = hits + 1
+					end
 				end
+			end
+			if matched and not allowed then
+				blocked[#blocked + 1] = quest
 			end
 		end
 	end
-	return hits
+	return hits, blocked
 end
 
 function ForeverMaker.GoalsComplete(quest)
@@ -74,6 +102,9 @@ function ForeverMaker.NoteCompletion(quest, when, character, realm, level)
 		quest.completed = nil
 		return
 	end
+	if not ForeverMaker.MeetsLevelLimit(quest, level) then
+		return
+	end
 	if type(quest.completed) == "table" and type(quest.completed.at) == "number" then
 		return
 	end
@@ -89,4 +120,42 @@ function ForeverMaker.NoteCompletion(quest, when, character, realm, level)
 		realm = realm,
 		level = level,
 	}
+end
+
+function ForeverMaker.DropIllegalCompletion(quest, level)
+	local constraints = type(quest) == "table" and quest.constraints
+	if type(quest) ~= "table" or type(constraints) ~= "table" or #constraints == 0 then
+		return false
+	end
+	local done = quest.completed
+	if type(done) == "table" and ForeverMaker.MeetsLevelLimit(quest, done.level) then
+		return false
+	end
+	local stampedPast = type(done) == "table"
+	local filledPast = ForeverMaker.GoalsComplete(quest) and type(level) == "number" and not ForeverMaker.MeetsLevelLimit(quest, level)
+	if not stampedPast and not filledPast then
+		return false
+	end
+	quest.completed = nil
+	if type(quest.goals) == "table" then
+		for _, goal in ipairs(quest.goals) do
+			if type(goal) == "table" then
+				goal.count = 0
+			end
+		end
+	end
+	return true
+end
+
+function ForeverMaker.EnforceSavedLimits(db, level)
+	local dropped = {}
+	if type(db) ~= "table" or type(db.quests) ~= "table" then
+		return dropped
+	end
+	for _, quest in pairs(db.quests) do
+		if ForeverMaker.DropIllegalCompletion(quest, level) then
+			dropped[#dropped + 1] = quest
+		end
+	end
+	return dropped
 end
