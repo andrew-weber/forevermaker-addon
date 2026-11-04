@@ -272,13 +272,9 @@ function ForeverMaker.Apply(db, quest)
 		constraints = quest.constraints,
 	}
 	local done = keepCounts and existing and existing.completed
-	if type(done) == "table" and type(done.at) == "number" and type(done.character) == "string" and type(done.level) == "number" and ForeverMaker.GoalsComplete(stored) then
-		stored.completed = {
-			at = done.at,
-			character = done.character,
-			realm = type(done.realm) == "string" and done.realm or "",
-			level = done.level,
-		}
+	local stamp = ForeverMaker.CopyCompletion(done)
+	if stamp and ForeverMaker.GoalsComplete(stored) then
+		stored.completed = stamp
 	end
 	local isNew = existing == nil
 	db.quests[quest.id] = stored

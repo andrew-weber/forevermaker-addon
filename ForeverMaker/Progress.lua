@@ -92,9 +92,146 @@ function ForeverMaker.GoalsComplete(quest)
 	return true
 end
 
+-- Paperdoll slots the Classic Era client can read. Ammo is slot 0 and is added only when that slot exists.
+ForeverMaker.GearSlots = {
+	{ id = 1, slot = "head" },
+	{ id = 2, slot = "neck" },
+	{ id = 3, slot = "shoulder" },
+	{ id = 4, slot = "shirt" },
+	{ id = 5, slot = "chest" },
+	{ id = 6, slot = "waist" },
+	{ id = 7, slot = "legs" },
+	{ id = 8, slot = "feet" },
+	{ id = 9, slot = "wrist" },
+	{ id = 10, slot = "hands" },
+	{ id = 11, slot = "finger1" },
+	{ id = 12, slot = "finger2" },
+	{ id = 13, slot = "trinket1" },
+	{ id = 14, slot = "trinket2" },
+	{ id = 15, slot = "back" },
+	{ id = 16, slot = "mainhand" },
+	{ id = 17, slot = "offhand" },
+	{ id = 18, slot = "ranged" },
+	{ id = 19, slot = "tabard" },
+}
+
+local classIds = {
+	[1] = true,
+	[2] = true,
+	[3] = true,
+	[4] = true,
+	[5] = true,
+	[7] = true,
+	[8] = true,
+	[9] = true,
+	[11] = true,
+}
+
+local gearSlotNames = { ammo = true }
+for _, slot in ipairs(ForeverMaker.GearSlots) do
+	gearSlotNames[slot.slot] = true
+end
+
+local function WholeNumber(value)
+	return type(value) == "number" and value == math.floor(value) and value >= -2147483647 and value <= 2147483647
+end
+
+function ForeverMaker.ValidClassId(classId)
+	return WholeNumber(classId) and classIds[classId] == true
+end
+
+function ForeverMaker.ParseItemLink(link)
+	if type(link) ~= "string" then
+		return nil
+	end
+	local body = string.match(link, "item:([^|]+)")
+	if not body then
+		return nil
+	end
+	local fields = {}
+	for field in string.gmatch(body .. ":", "([^:]*):") do
+		fields[#fields + 1] = field
+	end
+	local item = tonumber(fields[1])
+	local enchant = tonumber(fields[2])
+	local suffix = tonumber(fields[7])
+	if not WholeNumber(item) or item <= 0 then
+		return nil
+	end
+	if enchant ~= nil and not WholeNumber(enchant) then
+		enchant = nil
+	end
+	if suffix ~= nil and not WholeNumber(suffix) then
+		suffix = nil
+	end
+	return item, enchant, suffix
+end
+
+function ForeverMaker.GearRow(slot, item, link)
+	if gearSlotNames[slot] ~= true or not WholeNumber(item) or item <= 0 then
+		return nil
+	end
+	local row = { slot = slot, item = item }
+	local linkItem, enchant, suffix = ForeverMaker.ParseItemLink(link)
+	if linkItem == item then
+		if enchant and enchant > 0 then
+			row.enchant = enchant
+		end
+		if suffix and suffix ~= 0 then
+			row.suffix = suffix
+		end
+	end
+	return row
+end
+
+function ForeverMaker.CopyGear(gear)
+	if type(gear) ~= "table" then
+		return nil
+	end
+	local seen = {}
+	local out = {}
+	for _, row in ipairs(gear) do
+		if type(row) == "table" and seen[row.slot] ~= true then
+			local copy = ForeverMaker.GearRow(row.slot, row.item, nil)
+			if copy then
+				if WholeNumber(row.enchant) and row.enchant > 0 then
+					copy.enchant = row.enchant
+				end
+				if WholeNumber(row.suffix) and row.suffix ~= 0 then
+					copy.suffix = row.suffix
+				end
+				seen[row.slot] = true
+				out[#out + 1] = copy
+			end
+		end
+	end
+	return out
+end
+
+function ForeverMaker.CopyCompletion(done)
+	if type(done) ~= "table" or type(done.at) ~= "number" or type(done.character) ~= "string" or type(done.level) ~= "number" then
+		return nil
+	end
+	local stamp = {
+		at = done.at,
+		character = done.character,
+		realm = type(done.realm) == "string" and done.realm or "",
+		level = done.level,
+	}
+	if ForeverMaker.ValidClassId(done.classId) then
+		stamp.classId = done.classId
+	end
+	local worn = ForeverMaker.CopyGear(done.gear)
+	if worn then
+		stamp.gear = worn
+	end
+	return stamp
+end
+
 -- completed is part of the one quest record a later upload sends.
 -- at, character, realm, and level travel with the quest id, revision, and goal counts.
-function ForeverMaker.NoteCompletion(quest, when, character, realm, level)
+-- classId and gear are a snapshot from the moment the last goal filled.
+function ForeverMaker.NoteCompletion(quest, when, character, realm, level, classId, gear)
 	if type(quest) ~= "table" then
 		return
 	end
@@ -114,12 +251,14 @@ function ForeverMaker.NoteCompletion(quest, when, character, realm, level)
 	if type(realm) ~= "string" then
 		realm = ""
 	end
-	quest.completed = {
+	quest.completed = ForeverMaker.CopyCompletion({
 		at = when,
 		character = character,
 		realm = realm,
 		level = level,
-	}
+		classId = classId,
+		gear = gear,
+	})
 end
 
 function ForeverMaker.DropIllegalCompletion(quest, level)

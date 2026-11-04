@@ -55,6 +55,50 @@ function ForeverMaker.ThisCharacter()
 	return GetServerTime(), name, realm, UnitLevel("player")
 end
 
+function ForeverMaker.PlayerClassId()
+	if type(UnitClass) ~= "function" then
+		return nil
+	end
+	local _, _, classId = UnitClass("player")
+	if ForeverMaker.ValidClassId(classId) then
+		return classId
+	end
+	return nil
+end
+
+-- Worn gear is the paperdoll at the finish. Each row is slot, item id, and enchant or suffix from the item link.
+-- Empty slots, bags, stats, and gems are left out. Ammo is included only when this client still has AmmoSlot 0.
+function ForeverMaker.PlayerGear()
+	local rows = {}
+	local function add(slotId, name)
+		if type(GetInventoryItemID) ~= "function" then
+			return
+		end
+		local item = GetInventoryItemID("player", slotId)
+		if type(item) ~= "number" or item <= 0 then
+			return
+		end
+		local link = nil
+		if type(GetInventoryItemLink) == "function" then
+			link = GetInventoryItemLink("player", slotId)
+		end
+		local row = ForeverMaker.GearRow(name, item, link)
+		if row then
+			rows[#rows + 1] = row
+		end
+	end
+	if type(GetInventorySlotInfo) == "function" then
+		local ok, ammo = pcall(GetInventorySlotInfo, "AmmoSlot")
+		if ok and ammo == 0 then
+			add(0, "ammo")
+		end
+	end
+	for _, slot in ipairs(ForeverMaker.GearSlots) do
+		add(slot.id, slot.slot)
+	end
+	return rows
+end
+
 function ForeverMaker.OnPartyKill(_, victimGuid)
 	ForeverMaker.EnsureDB()
 	local creatureId = ForeverMaker.CreatureId(victimGuid)
@@ -71,8 +115,10 @@ function ForeverMaker.OnPartyKill(_, victimGuid)
 		return
 	end
 	local when, name, realm, level = ForeverMaker.ThisCharacter()
+	local classId = ForeverMaker.PlayerClassId()
+	local gear = ForeverMaker.PlayerGear()
 	for _, quest in pairs(ForeverMakerDB.quests) do
-		ForeverMaker.NoteCompletion(quest, when, name, realm, level)
+		ForeverMaker.NoteCompletion(quest, when, name, realm, level, classId, gear)
 	end
 	if ForeverMaker.RefreshLog then
 		ForeverMaker.RefreshLog()

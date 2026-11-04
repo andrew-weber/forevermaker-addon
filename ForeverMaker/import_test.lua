@@ -72,7 +72,7 @@ first.goals[1].name = "Small Crag Boar"
 db.quests[first.id].goals[1].count = 1
 db.quests[first.id].completed = { at = 1000, character = "Daklulim", realm = "Westfall", level = 4 }
 local again = ForeverMaker.Parse(small)
-Check("same rev keeps count", ForeverMaker.Apply(db, again) == "kept" and db.quests[first.id].goals[1].count == 1 and db.quests[first.id].completed.at == 1000)
+Check("same rev keeps count", ForeverMaker.Apply(db, again) == "kept" and db.quests[first.id].goals[1].count == 1 and db.quests[first.id].completed.at == 1000 and db.quests[first.id].completed.classId == nil and db.quests[first.id].completed.gear == nil)
 
 local higher = ForeverMaker.Parse(string.gsub(small, "rev 1", "rev 2"))
 Check("higher rev clears", ForeverMaker.Apply(db, higher) == "replaced" and db.quests[first.id].goals[1].count == 0 and db.quests[first.id].rev == 2 and db.quests[first.id].completed == nil)
@@ -114,6 +114,44 @@ Check("first completion stays", finished.completed.at == 1700000000 and finished
 finished.goals[1].count = 0
 ForeverMaker.NoteCompletion(finished, 1800000000, "Daklulim", "Westfall", 4)
 Check("open quest drops completion", finished.completed == nil)
+
+local itemId, enchantId, suffixId = ForeverMaker.ParseItemLink("|cff0070dd|Hitem:19364:2564:::::::60:::::::|h[Ashkandi]|h|r")
+Check("link enchant", itemId == 19364 and enchantId == 2564 and suffixId == nil)
+itemId, enchantId, suffixId = ForeverMaker.ParseItemLink("|cff1eff00|Hitem:7728:0:0:0:0:0:-12:0:20|h[Beguiler Robes]|h|r")
+Check("link suffix", itemId == 7728 and enchantId == 0 and suffixId == -12)
+Check("link missing", ForeverMaker.ParseItemLink("not an item") == nil)
+
+local gearText = string.gsub(small, "000000000001", "000000000009")
+local gearParsed = ForeverMaker.Parse(gearText)
+Check("gear quest saved", ForeverMaker.Apply(creditDb, gearParsed) == "saved")
+local storedGear = creditDb.quests[gearParsed.id]
+storedGear.goals[1].count = 1
+ForeverMaker.NoteCompletion(storedGear, 1700000000, "Daklulim", "Westfall", 4, 3, {
+	ForeverMaker.GearRow("mainhand", 19364, "|cff0070dd|Hitem:19364:2564:::::::60:::::::|h[Ashkandi]|h|r"),
+	ForeverMaker.GearRow("wrist", 7728, "|cff1eff00|Hitem:7728:0:0:0:0:0:-12:0:20|h[Beguiler Robes]|h|r"),
+	ForeverMaker.GearRow("chest", 2105, "|cffffffff|Hitem:999::::::::1:::::::|h[Wrong]|h|r"),
+	{ slot = "boots", item = 1 },
+	{ slot = "head", item = 1411, enchant = 0, suffix = 0 },
+	{ slot = "head", item = 22 },
+})
+local gear = storedGear.completed.gear
+Check("class and gear saved", storedGear.completed.classId == 3 and #gear == 4 and gear[1].slot == "mainhand" and gear[1].item == 19364 and gear[1].enchant == 2564 and gear[1].suffix == nil and gear[2].slot == "wrist" and gear[2].suffix == -12 and gear[2].enchant == nil and gear[3].slot == "chest" and gear[3].item == 2105 and gear[3].enchant == nil and gear[3].suffix == nil and gear[4].slot == "head" and gear[4].item == 1411 and gear[4].enchant == nil and gear[4].suffix == nil)
+ForeverMaker.NoteCompletion(storedGear, 1800000000, "Someone", "Other", 20, 8, {})
+Check("first class and gear stay", storedGear.completed.at == 1700000000 and storedGear.completed.classId == 3 and storedGear.completed.gear[1].enchant == 2564)
+Check("same rev keeps class and gear", ForeverMaker.Apply(creditDb, ForeverMaker.Parse(gearText)) == "kept" and creditDb.quests[gearParsed.id].completed.classId == 3 and creditDb.quests[gearParsed.id].completed.gear[2].suffix == -12 and #creditDb.quests[gearParsed.id].completed.gear == 4)
+
+local bare = ForeverMaker.Parse(string.gsub(small, "000000000001", "000000000008"))
+Check("bare quest saved", ForeverMaker.Apply(creditDb, bare) == "saved")
+local bareQuest = creditDb.quests[bare.id]
+bareQuest.goals[1].count = 1
+ForeverMaker.NoteCompletion(bareQuest, 1700000000, "Daklulim", "Westfall", 4, 6, {})
+Check("unknown class omitted", bareQuest.completed.classId == nil and bareQuest.completed.level == 4 and type(bareQuest.completed.gear) == "table" and #bareQuest.completed.gear == 0)
+
+local rows = ForeverMaker.CopyGear({
+	{ slot = "neck", item = 1200, enchant = 1.5 },
+	{ slot = "ammo", item = 2515 },
+})
+Check("bad enchant dropped", #rows == 2 and rows[1].slot == "neck" and rows[1].enchant == nil and rows[2].slot == "ammo" and rows[2].item == 2515)
 
 if failed > 0 then
 	os.exit(1)
