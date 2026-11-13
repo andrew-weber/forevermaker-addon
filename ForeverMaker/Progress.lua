@@ -1,13 +1,134 @@
 -- Count a PARTY_KILL against kill goals.
 -- The client delivers this event for the player and for the other four party members.
 -- This first build counts every one of those blows. A hunter pet's blow does not arrive here.
+-- A secret victim guid has no creature id. The experience sentence can name that blow.
 
 ForeverMaker = ForeverMaker or {}
 
 local seen = {}
+local pendingBlows = {}
+local pendingNames = {}
+local recentIdentified = nil
+local PAIR_WINDOW = 3
 
 function ForeverMaker.ResetSeen()
 	seen = {}
+	pendingBlows = {}
+	pendingNames = {}
+	recentIdentified = nil
+end
+
+function ForeverMaker.KillClock(now)
+	if type(now) == "number" then
+		return now
+	end
+	if type(GetTime) == "function" then
+		local ok, clock = pcall(GetTime)
+		if ok and type(clock) == "number" then
+			return clock
+		end
+	end
+	return os.time()
+end
+
+function ForeverMaker.HiddenKill(guid)
+	if type(issecretvalue) == "function" then
+		local ok, secret = pcall(issecretvalue, guid)
+		if ok and secret then
+			return true
+		end
+	end
+	return guid == nil
+end
+
+function ForeverMaker.NormalizeCreatureName(name)
+	if type(name) ~= "string" then
+		return nil
+	end
+	name = string.gsub(name, "^%s+", "")
+	name = string.gsub(name, "%s+$", "")
+	name = string.gsub(name, "\226\128\153", "'")
+	name = string.lower(name)
+	if name == "" then
+		return nil
+	end
+	return name
+end
+
+local function FormatPattern(fmt)
+	local out, order, i = {}, {}, 1
+	while i <= #fmt do
+		local c = string.sub(fmt, i, i)
+		if c == "%" then
+			local pos, conv = string.match(string.sub(fmt, i), "^%%(%d)%$([sd])")
+			local skip = 4
+			if not conv then
+				conv = string.match(string.sub(fmt, i), "^%%([sd])")
+				skip = 2
+			end
+			if conv then
+				order[#order + 1] = tonumber(pos) or (#order + 1)
+				if conv == "s" then
+					out[#out + 1] = "(.-)"
+				else
+					out[#out + 1] = "([%d%.,]+)"
+				end
+				i = i + skip
+			elseif string.sub(fmt, i + 1, i + 1) == "%" then
+				out[#out + 1] = "%%"
+				i = i + 2
+			else
+				out[#out + 1] = "%%"
+				i = i + 1
+			end
+		elseif string.find(c, "[%(%)%.%+%-%*%?%[%]%^%$]") then
+			out[#out + 1] = "%" .. c
+			i = i + 1
+		else
+			out[#out + 1] = c
+			i = i + 1
+		end
+	end
+	return "^" .. table.concat(out), order
+end
+
+function ForeverMaker.XpKillName(text)
+	if type(text) ~= "string" then
+		return nil
+	end
+	local fmt = COMBATLOG_XPGAIN_FIRSTPERSON
+	local pattern, order
+	if type(fmt) == "string" and fmt ~= "" then
+		pattern, order = FormatPattern(fmt)
+	else
+		pattern, order = "^(.-) dies, you gain [%d%.,]+ experience", { 1 }
+	end
+	local caps = { string.match(text, pattern) }
+	if #caps == 0 then
+		return nil
+	end
+	local args = {}
+	for index, argIndex in ipairs(order) do
+		args[argIndex] = caps[index]
+	end
+	return ForeverMaker.NormalizeCreatureName(args[1]) and args[1] or nil
+end
+
+local function prunePending(now)
+	local function keep(list)
+		local kept = {}
+		for _, item in ipairs(list) do
+			if now - item.time <= PAIR_WINDOW then
+				kept[#kept + 1] = item
+			end
+		end
+		return kept
+	end
+	pendingBlows = keep(pendingBlows)
+	pendingNames = keep(pendingNames)
+	if recentIdentified and now - recentIdentified > PAIR_WINDOW then
+		recentIdentified = nil
+	end
 end
 
 function ForeverMaker.CreatureId(guid)
@@ -46,8 +167,8 @@ function ForeverMaker.MeetsLevelLimit(quest, level)
 	return true
 end
 
-function ForeverMaker.CreditKill(db, creatureId, victimGuid, level)
-	if type(db) ~= "table" or type(db.quests) ~= "table" or type(creatureId) ~= "number" then
+local function CreditMatching(db, level, victimGuid, matches)
+	if type(db) ~= "table" or type(db.quests) ~= "table" then
 		return 0, {}
 	end
 	if type(victimGuid) == "string" then
@@ -64,7 +185,7 @@ function ForeverMaker.CreditKill(db, creatureId, victimGuid, level)
 			local allowed = ForeverMaker.MeetsLevelLimit(quest, level)
 			local matched = false
 			for _, goal in ipairs(quest.goals) do
-				if goal.kind == "kill" and goal.gameId == creatureId and type(goal.count) == "number" and type(goal.quantity) == "number" and goal.count < goal.quantity then
+				if goal.kind == "kill" and matches(goal) and type(goal.count) == "number" and type(goal.quantity) == "number" and goal.count < goal.quantity then
 					matched = true
 					if allowed then
 						goal.count = goal.count + 1
@@ -78,6 +199,64 @@ function ForeverMaker.CreditKill(db, creatureId, victimGuid, level)
 		end
 	end
 	return hits, blocked
+end
+
+function ForeverMaker.CreditKill(db, creatureId, victimGuid, level)
+	if type(creatureId) ~= "number" then
+		return 0, {}
+	end
+	return CreditMatching(db, level, victimGuid, function(goal)
+		return goal.gameId == creatureId
+	end)
+end
+
+function ForeverMaker.CreditKillByName(db, name, level)
+	local wanted = ForeverMaker.NormalizeCreatureName(name)
+	if not wanted then
+		return 0, {}
+	end
+	return CreditMatching(db, level, nil, function(goal)
+		return ForeverMaker.NormalizeCreatureName(goal.name) == wanted
+	end)
+end
+
+function ForeverMaker.OfferKill(db, victimGuid, level, now)
+	now = ForeverMaker.KillClock(now)
+	prunePending(now)
+	if ForeverMaker.HiddenKill(victimGuid) then
+		local waiting = table.remove(pendingNames, 1)
+		if waiting then
+			return ForeverMaker.CreditKillByName(db, waiting.name, level)
+		end
+		pendingBlows[#pendingBlows + 1] = { time = now }
+		return 0, {}
+	end
+	local creatureId = ForeverMaker.CreatureId(victimGuid)
+	if not creatureId then
+		return 0, {}
+	end
+	recentIdentified = now
+	table.remove(pendingNames, 1)
+	return ForeverMaker.CreditKill(db, creatureId, victimGuid, level)
+end
+
+function ForeverMaker.OfferXp(db, text, level, now)
+	now = ForeverMaker.KillClock(now)
+	prunePending(now)
+	local name = ForeverMaker.XpKillName(text)
+	if not name then
+		return 0, {}
+	end
+	local blow = pendingBlows[1]
+	if blow and (not recentIdentified or blow.time > recentIdentified) then
+		table.remove(pendingBlows, 1)
+		return ForeverMaker.CreditKillByName(db, name, level)
+	end
+	if recentIdentified then
+		return 0, {}
+	end
+	pendingNames[#pendingNames + 1] = { time = now, name = name }
+	return 0, {}
 end
 
 function ForeverMaker.GoalsComplete(quest)
