@@ -533,6 +533,7 @@ local function BuildImport()
 			ShowImportError("This copy is older than the one you have.")
 			return
 		end
+		ForeverMaker.SyncHeld(ForeverMakerDB)
 		ForeverMaker.selectedId = quest.id
 		frame:Hide()
 		if not log:IsShown() then

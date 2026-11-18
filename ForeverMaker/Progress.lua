@@ -80,6 +80,113 @@ function ForeverMaker.CreditKill(db, creatureId, victimGuid, level)
 	return hits, blocked
 end
 
+function ForeverMaker.ClientHoldsItem(itemId)
+	if type(itemId) ~= "number" then
+		return false
+	end
+	local function bagCount()
+		if type(C_Item) == "table" and type(C_Item.GetItemCount) == "function" then
+			local ok, count = pcall(C_Item.GetItemCount, itemId, true, false, true)
+			if ok and type(count) == "number" then
+				return count
+			end
+		end
+		if type(GetItemCount) == "function" then
+			local ok, count = pcall(GetItemCount, itemId, true)
+			if ok and type(count) == "number" then
+				return count
+			end
+		end
+		return nil
+	end
+	local count = bagCount()
+	if count == nil then
+		local numSlots = GetContainerNumSlots
+		local itemIn = GetContainerItemID
+		if type(C_Container) == "table" then
+			numSlots = numSlots or C_Container.GetContainerNumSlots
+			itemIn = itemIn or C_Container.GetContainerItemID
+		end
+		if type(numSlots) == "function" and type(itemIn) == "function" then
+			local bags = { 0, 1, 2, 3, 4, -1, 5, 6, 7, 8, 9, 10, 11, 12 }
+			for _, bag in ipairs(bags) do
+				local okSlots, slots = pcall(numSlots, bag)
+				if okSlots and type(slots) == "number" then
+					for slot = 1, slots do
+						local okItem, found = pcall(itemIn, bag, slot)
+						if okItem and found == itemId then
+							count = 1
+							break
+						end
+					end
+				end
+				if count == 1 then
+					break
+				end
+			end
+		end
+	end
+	if type(count) == "number" and count > 0 then
+		return true
+	end
+	if type(GetInventoryItemID) == "function" then
+		for slot = 0, 19 do
+			local ok, worn = pcall(GetInventoryItemID, "player", slot)
+			if ok and worn == itemId then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+function ForeverMaker.HoldsItem(itemId, holds)
+	if type(holds) == "function" then
+		return holds(itemId) == true
+	end
+	return ForeverMaker.ClientHoldsItem(itemId)
+end
+
+function ForeverMaker.RefreshHeld(db, holds)
+	if type(db) ~= "table" or type(db.quests) ~= "table" then
+		return false
+	end
+	local changed = false
+	for _, quest in pairs(db.quests) do
+		if type(quest) == "table" and type(quest.goals) == "table" then
+			local touched = false
+			for _, goal in ipairs(quest.goals) do
+				if type(goal) == "table" and goal.kind == "have" and type(goal.gameId) == "number" then
+					local count = ForeverMaker.HoldsItem(goal.gameId, holds) and 1 or 0
+					if goal.count ~= count then
+						goal.count = count
+						touched = true
+						changed = true
+					end
+				end
+			end
+			if touched and not ForeverMaker.GoalsComplete(quest) then
+				quest.completed = nil
+			end
+		end
+	end
+	return changed
+end
+
+function ForeverMaker.SyncHeld(db, holds)
+	local changed = ForeverMaker.RefreshHeld(db, holds)
+	if type(UnitName) ~= "function" or type(db) ~= "table" or type(db.quests) ~= "table" then
+		return changed
+	end
+	local when, name, realm, level = ForeverMaker.ThisCharacter()
+	local classId = ForeverMaker.PlayerClassId()
+	local gear = ForeverMaker.PlayerGear()
+	for _, quest in pairs(db.quests) do
+		ForeverMaker.NoteCompletion(quest, when, name, realm, level, classId, gear)
+	end
+	return changed
+end
+
 function ForeverMaker.GoalsComplete(quest)
 	if type(quest) ~= "table" or type(quest.goals) ~= "table" or #quest.goals == 0 then
 		return false

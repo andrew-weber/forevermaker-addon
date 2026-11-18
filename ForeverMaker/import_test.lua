@@ -153,6 +153,20 @@ local rows = ForeverMaker.CopyGear({
 })
 Check("bad enchant dropped", #rows == 2 and rows[1].slot == "neck" and rows[1].enchant == nil and rows[2].slot == "ammo" and rows[2].item == 2515)
 
+local devout = ForeverMaker.Parse("!FM:1!\nid devout01\nrev 1\ntitle Devout\ndesc\ngoal 1 have 1 item 16694 Devout Crown\ngoal 2 have 1 item 16693 Devout Bracers\ngoal 3 kill 1 npc 708 Mangy Boar")
+local badHave, badHaveErr = ForeverMaker.Parse("!FM:1!\nid devout01\nrev 1\ntitle Devout\ndesc\ngoal 1 have 2 item 16694 Devout Crown")
+Check("parse have", devout and devout.goals[1].kind == "have" and devout.goals[1].quantity == 1 and devout.goals[1].idType == "item" and devout.goals[1].gameId == 16694 and badHave == nil and badHaveErr == "A have goal is one item.")
+local heldDb = { quests = {}, order = {} }
+Check("have quest saved", ForeverMaker.Apply(heldDb, devout) == "saved" and heldDb.quests[devout.id].goals[1].count == 0)
+local owned = { [16694] = true }
+Check("owned piece is complete", ForeverMaker.RefreshHeld(heldDb, function(itemId) return owned[itemId] == true end) and heldDb.quests[devout.id].goals[1].count == 1 and heldDb.quests[devout.id].goals[2].count == 0 and heldDb.quests[devout.id].goals[3].count == 0)
+owned[16693] = true
+Check("second piece completes", ForeverMaker.RefreshHeld(heldDb, function(itemId) return owned[itemId] == true end) and heldDb.quests[devout.id].goals[2].count == 1)
+heldDb.quests[devout.id].goals[3].count = 1
+heldDb.quests[devout.id].completed = { at = 10, character = "Daklulim", realm = "Westfall", level = 1 }
+owned[16694] = nil
+Check("missing piece clears the finish", ForeverMaker.RefreshHeld(heldDb, function(itemId) return owned[itemId] == true end) and heldDb.quests[devout.id].goals[1].count == 0 and heldDb.quests[devout.id].completed == nil)
+
 if failed > 0 then
 	os.exit(1)
 end

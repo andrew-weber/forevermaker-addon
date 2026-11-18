@@ -1,6 +1,6 @@
 ## Interface: 11509, 16001
 ## Title: ForeverMaker
-## Notes: Paste a quest, track killing blows, and show them in a quest log.
+## Notes: Paste a quest, track killing blows and items you have, and show them in a quest log.
 ## Author: ForeverMaker
 ## Version: 0.1.0
 ## SavedVariablesPerCharacter: ForeverMakerDB
