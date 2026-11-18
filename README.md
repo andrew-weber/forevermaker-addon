@@ -23,8 +23,10 @@ Pasting the same quest again keeps the progress you already have. A newer copy o
 
 ## What the addon counts
 
-A kill goal advances when this character, or someone in the party, lands the killing blow and the creature id matches.
+A kill goal advances when this character, or someone in the party, lands the killing blow.
 
+- When the game shows the creature id, the addon matches that id.
+- When the game hides the id, the addon waits a few seconds for the experience line that names the creature. The line on its own adds nothing. A blow with no line adds nothing. One death counts once.
 - A level limit on the quest blocks the kill once this character is past it.
 - A hunter pet's killing blow is missed, because the game sends no party-kill event for it.
 - A collect goal is one item. It is complete while that item is in your bags, in the bank, or worn, including pieces you already had when you saved the quest. Giving the item away opens that goal again.

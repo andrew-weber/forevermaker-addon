@@ -99,11 +99,7 @@ function ForeverMaker.PlayerGear()
 	return rows
 end
 
-function ForeverMaker.OnPartyKill(_, victimGuid)
-	ForeverMaker.EnsureDB()
-	local creatureId = ForeverMaker.CreatureId(victimGuid)
-	local _, _, _, level = ForeverMaker.ThisCharacter()
-	local hits, blocked = ForeverMaker.CreditKill(ForeverMakerDB, creatureId, victimGuid, level)
+function ForeverMaker.ApplyKillCredit(hits, blocked)
 	if hits <= 0 then
 		if type(blocked) == "table" and DEFAULT_CHAT_FRAME then
 			for _, quest in ipairs(blocked) do
@@ -125,9 +121,24 @@ function ForeverMaker.OnPartyKill(_, victimGuid)
 	end
 end
 
+function ForeverMaker.OnPartyKill(_, victimGuid)
+	ForeverMaker.EnsureDB()
+	local _, _, _, level = ForeverMaker.ThisCharacter()
+	local hits, blocked = ForeverMaker.OfferKill(ForeverMakerDB, victimGuid, level)
+	ForeverMaker.ApplyKillCredit(hits, blocked)
+end
+
+function ForeverMaker.OnXpGain(text)
+	ForeverMaker.EnsureDB()
+	local _, _, _, level = ForeverMaker.ThisCharacter()
+	local hits, blocked = ForeverMaker.OfferXp(ForeverMakerDB, text, level)
+	ForeverMaker.ApplyKillCredit(hits, blocked)
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PARTY_KILL")
+events:RegisterEvent("CHAT_MSG_COMBAT_XP_GAIN")
 events:RegisterEvent("BAG_UPDATE")
 events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 events:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
@@ -143,6 +154,8 @@ events:SetScript("OnEvent", function(_, event, ...)
 		ForeverMaker.RefreshLog()
 	elseif event == "PARTY_KILL" then
 		ForeverMaker.OnPartyKill(...)
+	elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
+		ForeverMaker.OnXpGain(...)
 	elseif event == "BAG_UPDATE" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYERBANKSLOTS_CHANGED" then
 		ForeverMaker.EnsureDB()
 		if ForeverMaker.SyncHeld(ForeverMakerDB) and ForeverMaker.RefreshLog then

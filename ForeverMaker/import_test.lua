@@ -167,6 +167,40 @@ heldDb.quests[devout.id].completed = { at = 10, character = "Daklulim", realm = 
 owned[16694] = nil
 Check("missing piece clears the finish", ForeverMaker.RefreshHeld(heldDb, function(itemId) return owned[itemId] == true end) and heldDb.quests[devout.id].goals[1].count == 0 and heldDb.quests[devout.id].completed == nil)
 
+ForeverMaker.ResetSeen()
+local namedText = "!FM:1!\nid g0rg3rQz\nrev 1\ntitle Gorgers\ndesc\ngoal 1 kill 3 npc 12345 Mindless Gorger"
+local named = ForeverMaker.Parse(namedText)
+local namedDb = { quests = {}, order = {} }
+Check("named quest saved", ForeverMaker.Apply(namedDb, named) == "saved")
+local gorger = namedDb.quests[named.id].goals[1]
+local xpLine = "Mindless Gorger dies, you gain 40 experience."
+Check("xp names the creature", ForeverMaker.XpKillName(xpLine) == "Mindless Gorger")
+Check("rested xp still names it", ForeverMaker.XpKillName("Mindless Gorger dies, you gain 1,025 experience. (+60 exp Rested bonus)") == "Mindless Gorger")
+Check("quest xp is not a kill", ForeverMaker.XpKillName("You gain 50 experience.") == nil)
+Check("xp alone does not count", ForeverMaker.OfferXp(namedDb, xpLine, 40, 10) == 0 and gorger.count == 0)
+Check("hidden blow takes the waiting name", ForeverMaker.OfferKill(namedDb, nil, 40, 10) == 1 and gorger.count == 1)
+Check("hidden blow waits for a name", ForeverMaker.OfferKill(namedDb, nil, 40, 11) == 0 and gorger.count == 1)
+Check("xp fills the waiting blow", ForeverMaker.OfferXp(namedDb, "mindless gorger dies, you gain 40 experience.", 40, 12) == 1 and gorger.count == 2)
+Check("xp without a blow does not count", ForeverMaker.OfferXp(namedDb, xpLine, 40, 20) == 0 and gorger.count == 2)
+Check("later xp misses the expired blow", ForeverMaker.OfferKill(namedDb, nil, 40, 30) == 0 and ForeverMaker.OfferXp(namedDb, xpLine, 40, 34) == 0 and gorger.count == 2)
+local boarGuid = "Creature-0-5165-1-49-3098-000061FF60"
+gorger.gameId = 3098
+gorger.name = "Mottled Boar"
+Check("readable kill counts by id", ForeverMaker.OfferKill(namedDb, boarGuid, 40, 40) == 1 and gorger.count == 3)
+Check("xp after a readable kill does not count again", ForeverMaker.OfferXp(namedDb, "Mottled Boar dies, you gain 25 experience.", 40, 41) == 0 and gorger.count == 3)
+local other = "Creature-0-5165-1-49-3099-000061FF61"
+Check("another name does not match", ForeverMaker.OfferKill(namedDb, nil, 40, 50) == 0 and ForeverMaker.OfferXp(namedDb, "Risen Sentry dies, you gain 99 experience.", 40, 51) == 0 and gorger.count == 3)
+local limitDb = { quests = {}, order = {} }
+local limitedNamed = ForeverMaker.Parse("!FM:1!\nid tr0ggLim\nrev 1\ntitle Trogg\ndesc\ngoal 1 kill 1 npc 708 Rockjaw Trogg\nconstraint 1 level < 2")
+Check("limited named quest saved", ForeverMaker.Apply(limitDb, limitedNamed) == "saved")
+local trogg = limitDb.quests[limitedNamed.id].goals[1]
+Check("name waits for the blow", ForeverMaker.OfferXp(limitDb, "Rockjaw Trogg dies, you gain 44 experience.", 2, 60) == 0 and trogg.count == 0)
+local hits, blocked = ForeverMaker.OfferKill(limitDb, nil, 2, 60)
+Check("level blocks the named kill", hits == 0 and trogg.count == 0 and blocked[1] == limitDb.quests[limitedNamed.id])
+COMBATLOG_XPGAIN_FIRSTPERSON = "%s dies, you gain %d experience."
+Check("client xp pattern", ForeverMaker.XpKillName("Mindless Gorger dies, you gain 40 experience.") == "Mindless Gorger")
+COMBATLOG_XPGAIN_FIRSTPERSON = nil
+
 if failed > 0 then
 	os.exit(1)
 end

@@ -45,7 +45,7 @@ local function CompletionText(completed)
 	end
 	local who = completed.character
 	if type(completed.realm) == "string" and completed.realm ~= "" then
-		who = who .. " of " .. completed.realm
+		who = who .. " " .. completed.realm
 	end
 	local whenText = completed.at
 	if date then
@@ -99,15 +99,17 @@ function ForeverMaker.RefreshLog()
 	for i, id in ipairs(order) do
 		local button = listButtons[i]
 		if not button then
+			-- Forever has no Classic QuestLogTitleButtonTemplate. Inheriting it errors
+			-- after Save, so the quest is stored and the list stays at zero.
 			button = CreateFrame("Button", nil, listChild)
 			button:SetSize(LIST_W - 8, ROW_H)
 			button:SetPoint("TOPLEFT", listChild, "TOPLEFT", 0, -((i - 1) * ROW_H))
-			local bar = button:CreateTexture(nil, "HIGHLIGHT")
-			bar:SetTexture("Interface\\QuestFrame\\UI-QuestLogTitleHighlight")
-			bar:SetBlendMode("ADD")
-			bar:SetAllPoints()
-			bar:SetVertexColor(1, 0.82, 0)
-			button:SetHighlightTexture(bar)
+			button:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestLogTitleHighlight")
+			local bar = button:GetHighlightTexture()
+			if bar then
+				bar:SetBlendMode("ADD")
+				bar:SetVertexColor(1, 0.82, 0)
+			end
 			button.label = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 			button.label:SetPoint("LEFT", 4, 0)
 			button.label:SetPoint("RIGHT", -20, 0)
@@ -116,6 +118,7 @@ function ForeverMaker.RefreshLog()
 			button.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
 			button.check:SetSize(16, 16)
 			button.check:SetPoint("RIGHT", -2, 0)
+			button.check:Hide()
 			button:SetScript("OnClick", function(self)
 				ForeverMaker.selectedId = self.questId
 				ForeverMaker.RefreshLog()
