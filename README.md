@@ -9,6 +9,10 @@ ForeverMaker is a quest addon for WoW Classic Era and WoW Forever. The website a
 
 Type `/fm` or `/forevermaker` to open the quest log.
 
+## Frames
+
+Draw the quest log with our own frames. Forever does not include Classic's `QuestLogTitleButtonTemplate`. Inheriting that template makes `CreateFrame` fail, the list stops drawing, and the log stays at zero quests even though the quest was saved. This has happened twice. List rows are plain buttons with their own text, highlight, and check mark. Do not inherit a Blizzard quest-log template unless it is confirmed on both Classic Era and Forever.
+
 ## Take a quest into the game
 
 1. Open a saved quest on the website and choose **Export Quest**. That copies a short text block.
