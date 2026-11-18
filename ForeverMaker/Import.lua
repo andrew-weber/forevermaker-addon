@@ -84,17 +84,23 @@ local function ParseGoal(rest, expectedPos)
 	if pos ~= expectedPos then
 		return "Goal lines must stay in order, starting at 1."
 	end
-	if kind ~= "kill" and kind ~= "acquire" then
-		return "A goal must be kill or acquire."
+	if kind ~= "kill" and kind ~= "acquire" and kind ~= "have" then
+		return "A goal must be kill, acquire, or have."
 	end
 	if not quantity then
 		return "A goal quantity must be from 1 to 9999."
+	end
+	if kind == "have" and quantity ~= 1 then
+		return "A have goal is one item."
 	end
 	if kind == "kill" and idType ~= "npc" then
 		return "A kill goal uses npc."
 	end
 	if kind == "acquire" and idType ~= "item" then
 		return "An acquire goal uses item."
+	end
+	if kind == "have" and idType ~= "item" then
+		return "A have goal uses item."
 	end
 	if not gameId then
 		return "A goal needs a game id."

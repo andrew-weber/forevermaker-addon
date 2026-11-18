@@ -9,6 +9,10 @@ ForeverMaker is a quest addon for WoW Classic Era and WoW Forever. The website a
 
 Type `/fm` or `/forevermaker` to open the quest log.
 
+## Frames
+
+Draw the quest log with our own frames. Forever does not include Classic's `QuestLogTitleButtonTemplate`. Inheriting that template makes `CreateFrame` fail, the list stops drawing, and the log stays at zero quests even though the quest was saved. This has happened twice. List rows are plain buttons with their own text, highlight, and check mark. Do not inherit a Blizzard quest-log template unless it is confirmed on both Classic Era and Forever.
+
 ## Take a quest into the game
 
 1. Open a saved quest on the website and choose **Export Quest**. That copies a short text block.
@@ -25,7 +29,8 @@ A kill goal advances when this character, or someone in the party, lands the kil
 - When the game hides the id, the addon waits a few seconds for the experience line that names the creature. The line on its own adds nothing. A blow with no line adds nothing. One death counts once.
 - A level limit on the quest blocks the kill once this character is past it.
 - A hunter pet's killing blow is missed, because the game sends no party-kill event for it.
-- An acquire goal stays on the log. Item counts wait for a later version.
+- A collect goal is one item. It is complete while that item is in your bags, in the bank, or worn, including pieces you already had when you saved the quest. Giving the item away opens that goal again.
+- A loot goal stays on the log. That goal is a count of items, and those counts wait for a later version.
 
 When every goal is full, the addon records who finished it, their level, class, and worn gear.
 

@@ -1,5 +1,7 @@
 -- Our quest log. Leatrix only resizes Blizzard's QuestLogFrame, so this window is drawn here.
 -- Left list, right page, goal counts, and the story. Import, Remove, and Close.
+-- List rows are plain buttons. Forever has no QuestLogTitleButtonTemplate, and inheriting it
+-- stops the redraw after a save. See README.md.
 
 ForeverMaker = ForeverMaker or {}
 
@@ -525,6 +527,7 @@ local function BuildImport()
 			ShowImportError("This copy is older than the one you have.")
 			return
 		end
+		ForeverMaker.SyncHeld(ForeverMakerDB)
 		ForeverMaker.selectedId = quest.id
 		frame:Hide()
 		if not log:IsShown() then

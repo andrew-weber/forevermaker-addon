@@ -139,6 +139,9 @@ local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PARTY_KILL")
 events:RegisterEvent("CHAT_MSG_COMBAT_XP_GAIN")
+events:RegisterEvent("BAG_UPDATE")
+events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+events:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
 events:SetScript("OnEvent", function(_, event, ...)
 	if event == "ADDON_LOADED" then
 		local name = ...
@@ -146,12 +149,18 @@ events:SetScript("OnEvent", function(_, event, ...)
 			return
 		end
 		ForeverMaker.EnsureDB()
+		ForeverMaker.SyncHeld(ForeverMakerDB)
 		ForeverMaker.BuildFrames()
 		ForeverMaker.RefreshLog()
 	elseif event == "PARTY_KILL" then
 		ForeverMaker.OnPartyKill(...)
 	elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
 		ForeverMaker.OnXpGain(...)
+	elseif event == "BAG_UPDATE" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYERBANKSLOTS_CHANGED" then
+		ForeverMaker.EnsureDB()
+		if ForeverMaker.SyncHeld(ForeverMakerDB) and ForeverMaker.RefreshLog then
+			ForeverMaker.RefreshLog()
+		end
 	end
 end)
 
@@ -159,6 +168,7 @@ SLASH_FOREVERMAKER1 = "/fm"
 SLASH_FOREVERMAKER2 = "/forevermaker"
 SlashCmdList.FOREVERMAKER = function()
 	ForeverMaker.EnsureDB()
+	ForeverMaker.SyncHeld(ForeverMakerDB)
 	ForeverMaker.BuildFrames()
 	ForeverMaker.ToggleLog()
 end
