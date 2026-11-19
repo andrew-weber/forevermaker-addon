@@ -149,6 +149,9 @@ events:SetScript("OnEvent", function(_, event, ...)
 			return
 		end
 		ForeverMaker.EnsureDB()
+		if ForeverMaker.ApplyInbox then
+			ForeverMaker.ApplyInbox(ForeverMakerDB, ForeverMaker.ClientGame and ForeverMaker.ClientGame())
+		end
 		ForeverMaker.SyncHeld(ForeverMakerDB)
 		ForeverMaker.BuildFrames()
 		ForeverMaker.RefreshLog()

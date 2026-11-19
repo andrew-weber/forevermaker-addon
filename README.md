@@ -21,6 +21,8 @@ Draw the quest log with our own frames. Forever does not include Classic's `Ques
 
 Pasting the same quest again keeps the progress you already have. A newer copy of that quest replaces it and starts the counts over. An older copy is refused.
 
+The companion can write the quests this account accepted into `InboxData.lua`. A `/reload` reads that file. A quest that is already in the log keeps its counts.
+
 ## What the addon counts
 
 A kill goal advances when this character, or someone in the party, lands the killing blow.

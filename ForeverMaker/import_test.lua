@@ -3,6 +3,7 @@ local root = string.match(arg[0], "^(.*)/") or "."
 ForeverMaker = {}
 dofile(root .. "/Import.lua")
 dofile(root .. "/Progress.lua")
+dofile(root .. "/Inbox.lua")
 
 local failed = 0
 
@@ -200,6 +201,17 @@ Check("level blocks the named kill", hits == 0 and trogg.count == 0 and blocked[
 COMBATLOG_XPGAIN_FIRSTPERSON = "%s dies, you gain %d experience."
 Check("client xp pattern", ForeverMaker.XpKillName("Mindless Gorger dies, you gain 40 experience.") == "Mindless Gorger")
 COMBATLOG_XPGAIN_FIRSTPERSON = nil
+
+dofile(root .. "/InboxData.lua")
+local inboxDb = { quests = {}, order = {} }
+ForeverMakerInbox = {
+	{ game = "classic", text = small },
+	{ game = "forever", text = public },
+}
+Check("classic inbox", ForeverMaker.ApplyInbox(inboxDb, "classic") == 1 and inboxDb.quests[first.id] and not inboxDb.quests["k3J8aQ_z"])
+Check("forever inbox", ForeverMaker.ApplyInbox(inboxDb, "forever") == 1 and inboxDb.quests["k3J8aQ_z"])
+inboxDb.quests[first.id].goals[1].count = 1
+Check("same inbox keeps progress", ForeverMaker.ApplyInbox(inboxDb, "classic") == 0 and inboxDb.quests[first.id].goals[1].count == 1)
 
 if failed > 0 then
 	os.exit(1)
