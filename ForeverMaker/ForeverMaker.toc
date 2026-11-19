@@ -8,5 +8,7 @@
 
 Import.lua
 Progress.lua
+InboxData.lua
+Inbox.lua
 QuestLog.lua
 Core.lua
