@@ -352,8 +352,50 @@ function ForeverMaker.RefreshHeld(db, holds)
 	return changed
 end
 
-function ForeverMaker.SyncHeld(db, holds)
-	local changed = ForeverMaker.RefreshHeld(db, holds)
+function ForeverMaker.ClientQuestDone(questId)
+	if type(questId) ~= "number" then
+		return false
+	end
+	if C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted) == "function" then
+		local ok, done = pcall(C_QuestLog.IsQuestFlaggedCompleted, questId)
+		return ok and done == true
+	end
+	if type(IsQuestFlaggedCompleted) == "function" then
+		local ok, done = pcall(IsQuestFlaggedCompleted, questId)
+		return ok and done == true
+	end
+	return false
+end
+
+function ForeverMaker.QuestDone(questId, done)
+	if type(done) == "function" then
+		return done(questId) == true
+	end
+	return ForeverMaker.ClientQuestDone(questId)
+end
+
+function ForeverMaker.RefreshQuests(db, done)
+	if type(db) ~= "table" or type(db.quests) ~= "table" then
+		return false
+	end
+	local changed = false
+	for _, quest in pairs(db.quests) do
+		if type(quest) == "table" and type(quest.goals) == "table" then
+			for _, goal in ipairs(quest.goals) do
+				if type(goal) == "table" and goal.kind == "quest" and type(goal.gameId) == "number" then
+					if ForeverMaker.QuestDone(goal.gameId, done) and goal.count ~= 1 then
+						goal.count = 1
+						changed = true
+					end
+				end
+			end
+		end
+	end
+	return changed
+end
+
+function ForeverMaker.SyncHeld(db, holds, done)
+	local changed = ForeverMaker.RefreshHeld(db, holds) or ForeverMaker.RefreshQuests(db, done)
 	if type(UnitName) ~= "function" or type(db) ~= "table" or type(db.quests) ~= "table" then
 		return changed
 	end

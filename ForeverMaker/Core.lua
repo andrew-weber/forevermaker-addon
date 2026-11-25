@@ -142,6 +142,7 @@ events:RegisterEvent("CHAT_MSG_COMBAT_XP_GAIN")
 events:RegisterEvent("BAG_UPDATE")
 events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 events:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
+events:RegisterEvent("QUEST_TURNED_IN")
 events:SetScript("OnEvent", function(_, event, ...)
 	if event == "ADDON_LOADED" then
 		local name = ...
@@ -159,7 +160,7 @@ events:SetScript("OnEvent", function(_, event, ...)
 		ForeverMaker.OnPartyKill(...)
 	elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
 		ForeverMaker.OnXpGain(...)
-	elseif event == "BAG_UPDATE" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYERBANKSLOTS_CHANGED" then
+	elseif event == "BAG_UPDATE" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYERBANKSLOTS_CHANGED" or event == "QUEST_TURNED_IN" then
 		ForeverMaker.EnsureDB()
 		if ForeverMaker.SyncHeld(ForeverMakerDB) and ForeverMaker.RefreshLog then
 			ForeverMaker.RefreshLog()
