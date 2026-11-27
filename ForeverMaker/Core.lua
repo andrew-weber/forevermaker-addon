@@ -151,7 +151,8 @@ events:SetScript("OnEvent", function(_, event, ...)
 		end
 		ForeverMaker.EnsureDB()
 		if ForeverMaker.ApplyInbox then
-			ForeverMaker.ApplyInbox(ForeverMakerDB, ForeverMaker.ClientGame and ForeverMaker.ClientGame())
+			local _, name, realm = ForeverMaker.ThisCharacter()
+			ForeverMaker.ApplyInbox(ForeverMakerDB, ForeverMaker.ClientGame and ForeverMaker.ClientGame(), { name = name, realm = realm })
 		end
 		ForeverMaker.SyncHeld(ForeverMakerDB)
 		ForeverMaker.BuildFrames()

@@ -220,6 +220,16 @@ Check("classic inbox", ForeverMaker.ApplyInbox(inboxDb, "classic") == 1 and inbo
 Check("forever inbox", ForeverMaker.ApplyInbox(inboxDb, "forever") == 1 and inboxDb.quests["k3J8aQ_z"])
 inboxDb.quests[first.id].goals[1].count = 1
 Check("same inbox keeps progress", ForeverMaker.ApplyInbox(inboxDb, "classic") == 0 and inboxDb.quests[first.id].goals[1].count == 1)
+local namedDb = { quests = {}, order = {} }
+ForeverMakerInbox = {
+	{ game = "classic", name = "Daklulim", realm = "Westfall", text = small },
+	{ game = "classic", name = "Lyra", realm = "Westfall", text = public },
+}
+Check("named inbox keeps the matching character", ForeverMaker.ApplyInbox(namedDb, "classic", { name = "Daklulim", realm = "Westfall" }) == 1 and namedDb.quests[first.id].inbox and not namedDb.quests["k3J8aQ_z"])
+local pasted = ForeverMaker.Parse(public)
+Check("a pasted quest stays", ForeverMaker.Apply(namedDb, pasted) == "saved" and not namedDb.quests["k3J8aQ_z"].inbox)
+ForeverMakerInbox = {}
+Check("a finished inbox quest leaves and a paste stays", ForeverMaker.ApplyInbox(namedDb, "classic", { name = "Daklulim", realm = "Westfall" }) == 0 and not namedDb.quests[first.id] and namedDb.quests["k3J8aQ_z"])
 
 if failed > 0 then
 	os.exit(1)
