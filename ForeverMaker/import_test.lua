@@ -168,6 +168,14 @@ heldDb.quests[devout.id].completed = { at = 10, character = "Daklulim", realm = 
 owned[16694] = nil
 Check("missing piece clears the finish", ForeverMaker.RefreshHeld(heldDb, function(itemId) return owned[itemId] == true end) and heldDb.quests[devout.id].goals[1].count == 0 and heldDb.quests[devout.id].completed == nil)
 
+local wanted = ForeverMaker.Parse('!FM:1!\nid hogger01\nrev 1\ntitle Hogger\ndesc\ngoal 1 quest 1 quest 176 Wanted: "Hogger"')
+local badQuest = ForeverMaker.Parse("!FM:1!\nid hogger01\nrev 1\ntitle Hogger\ndesc\ngoal 1 quest 2 quest 176 Wanted")
+Check("parse quest", wanted and wanted.goals[1].kind == "quest" and wanted.goals[1].quantity == 1 and wanted.goals[1].idType == "quest" and wanted.goals[1].gameId == 176 and wanted.goals[1].name == 'Wanted: "Hogger"' and badQuest == nil)
+local turnedDb = { quests = {}, order = {} }
+Check("quest goal saved", ForeverMaker.Apply(turnedDb, wanted) == "saved" and turnedDb.quests[wanted.id].goals[1].count == 0)
+Check("turned in quest counts", ForeverMaker.RefreshQuests(turnedDb, function(questId) return questId == 176 end) and turnedDb.quests[wanted.id].goals[1].count == 1)
+Check("a later false stays complete", not ForeverMaker.RefreshQuests(turnedDb, function() return false end) and turnedDb.quests[wanted.id].goals[1].count == 1)
+
 ForeverMaker.ResetSeen()
 local namedText = "!FM:1!\nid g0rg3rQz\nrev 1\ntitle Gorgers\ndesc\ngoal 1 kill 3 npc 12345 Mindless Gorger"
 local named = ForeverMaker.Parse(namedText)
