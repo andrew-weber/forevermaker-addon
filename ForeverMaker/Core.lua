@@ -135,10 +135,19 @@ function ForeverMaker.OnXpGain(text)
 	ForeverMaker.ApplyKillCredit(hits, blocked)
 end
 
+function ForeverMaker.OnEncounter(encounterName, success)
+	ForeverMaker.EnsureDB()
+	local _, _, _, level = ForeverMaker.ThisCharacter()
+	local hits, blocked = ForeverMaker.OfferEncounter(ForeverMakerDB, encounterName, success, level)
+	ForeverMaker.ApplyKillCredit(hits, blocked)
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PARTY_KILL")
 events:RegisterEvent("CHAT_MSG_COMBAT_XP_GAIN")
+pcall(events.RegisterEvent, events, "ENCOUNTER_END")
+pcall(events.RegisterEvent, events, "BOSS_KILL")
 events:RegisterEvent("BAG_UPDATE")
 events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 events:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
@@ -161,6 +170,12 @@ events:SetScript("OnEvent", function(_, event, ...)
 		ForeverMaker.OnPartyKill(...)
 	elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
 		ForeverMaker.OnXpGain(...)
+	elseif event == "ENCOUNTER_END" then
+		local _, encounterName, _, _, success = ...
+		ForeverMaker.OnEncounter(encounterName, success)
+	elseif event == "BOSS_KILL" then
+		local _, encounterName = ...
+		ForeverMaker.OnEncounter(encounterName, 1)
 	elseif event == "BAG_UPDATE" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYERBANKSLOTS_CHANGED" or event == "QUEST_TURNED_IN" then
 		ForeverMaker.EnsureDB()
 		if ForeverMaker.SyncHeld(ForeverMakerDB) and ForeverMaker.RefreshLog then

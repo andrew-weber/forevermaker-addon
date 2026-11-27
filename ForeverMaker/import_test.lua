@@ -208,6 +208,19 @@ local hits, blocked = ForeverMaker.OfferKill(limitDb, nil, 2, 60)
 Check("level blocks the named kill", hits == 0 and trogg.count == 0 and blocked[1] == limitDb.quests[limitedNamed.id])
 COMBATLOG_XPGAIN_FIRSTPERSON = "%s dies, you gain %d experience."
 Check("client xp pattern", ForeverMaker.XpKillName("Mindless Gorger dies, you gain 40 experience.") == "Mindless Gorger")
+ForeverMaker.ResetSeen()
+local boss = ForeverMaker.Parse("!FM:1!\nid b4ln4z4r\nrev 1\ntitle Balnazzar\ndesc\ngoal 1 kill 1 npc 10813 Balnazzar")
+local bossDb = { quests = {}, order = {} }
+Check("boss quest saved", ForeverMaker.Apply(bossDb, boss) == "saved")
+local balnazzar = bossDb.quests[boss.id].goals[1]
+Check("a failed encounter does not count", ForeverMaker.OfferEncounter(bossDb, "Balnazzar", 0, 60, 100) == 0 and balnazzar.count == 0)
+Check("a boss encounter counts by name", ForeverMaker.OfferEncounter(bossDb, "Balnazzar", 1, 60, 100) == 1 and balnazzar.count == 1)
+Check("the same encounter does not count twice", ForeverMaker.OfferEncounter(bossDb, "balnazzar", 1, 60, 101) == 0 and balnazzar.count == 1)
+Check("another encounter name does not match", ForeverMaker.OfferEncounter(bossDb, "Baron Rivendare", 1, 60, 110) == 0 and balnazzar.count == 1)
+balnazzar.count = 0
+ForeverMaker.ResetSeen()
+Check("a hidden blow then the encounter counts once", ForeverMaker.OfferKill(bossDb, nil, 60, 200) == 0 and ForeverMaker.OfferEncounter(bossDb, "Balnazzar", 1, 60, 201) == 1 and balnazzar.count == 1)
+Check("experience after that encounter does not count again", ForeverMaker.OfferXp(bossDb, "Balnazzar dies, you gain 0 experience.", 60, 202) == 0 and balnazzar.count == 1)
 COMBATLOG_XPGAIN_FIRSTPERSON = nil
 
 dofile(root .. "/InboxData.lua")
