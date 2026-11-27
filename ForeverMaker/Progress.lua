@@ -2,6 +2,7 @@
 -- The client delivers this event for the player and for the other four party members.
 -- This first build counts every one of those blows. A hunter pet's blow does not arrive here.
 -- A secret victim guid has no creature id. The experience sentence can name that blow.
+-- A successful ENCOUNTER_END or BOSS_KILL names a dungeon boss even when that guid is hidden.
 
 ForeverMaker = ForeverMaker or {}
 
@@ -9,6 +10,7 @@ local seen = {}
 local pendingBlows = {}
 local pendingNames = {}
 local recentIdentified = nil
+local recentNamed = {}
 local PAIR_WINDOW = 3
 
 function ForeverMaker.ResetSeen()
@@ -16,6 +18,7 @@ function ForeverMaker.ResetSeen()
 	pendingBlows = {}
 	pendingNames = {}
 	recentIdentified = nil
+	recentNamed = {}
 end
 
 function ForeverMaker.KillClock(now)
@@ -129,6 +132,23 @@ local function prunePending(now)
 	if recentIdentified and now - recentIdentified > PAIR_WINDOW then
 		recentIdentified = nil
 	end
+	for name, at in pairs(recentNamed) do
+		if now - at > PAIR_WINDOW then
+			recentNamed[name] = nil
+		end
+	end
+end
+
+local function rememberName(name, now)
+	local wanted = ForeverMaker.NormalizeCreatureName(name)
+	if wanted then
+		recentNamed[wanted] = now
+	end
+end
+
+local function namedRecently(name, now)
+	local wanted = ForeverMaker.NormalizeCreatureName(name)
+	return wanted ~= nil and recentNamed[wanted] ~= nil and now - recentNamed[wanted] <= PAIR_WINDOW
 end
 
 function ForeverMaker.CreatureId(guid)
@@ -240,6 +260,26 @@ function ForeverMaker.OfferKill(db, victimGuid, level, now)
 	return ForeverMaker.CreditKill(db, creatureId, victimGuid, level)
 end
 
+function ForeverMaker.OfferEncounter(db, name, success, level, now)
+	now = ForeverMaker.KillClock(now)
+	prunePending(now)
+	if success ~= 1 and success ~= true then
+		return 0, {}
+	end
+	if ForeverMaker.HiddenKill(name) or namedRecently(name, now) then
+		return 0, {}
+	end
+	if recentIdentified and now - recentIdentified <= PAIR_WINDOW then
+		return 0, {}
+	end
+	local hits, blocked = ForeverMaker.CreditKillByName(db, name, level)
+	if hits > 0 then
+		rememberName(name, now)
+		recentIdentified = now
+	end
+	return hits, blocked
+end
+
 function ForeverMaker.OfferXp(db, text, level, now)
 	now = ForeverMaker.KillClock(now)
 	prunePending(now)
@@ -250,7 +290,14 @@ function ForeverMaker.OfferXp(db, text, level, now)
 	local blow = pendingBlows[1]
 	if blow and (not recentIdentified or blow.time > recentIdentified) then
 		table.remove(pendingBlows, 1)
-		return ForeverMaker.CreditKillByName(db, name, level)
+		if namedRecently(name, now) then
+			return 0, {}
+		end
+		local hits, blocked = ForeverMaker.CreditKillByName(db, name, level)
+		if hits > 0 then
+			rememberName(name, now)
+		end
+		return hits, blocked
 	end
 	if recentIdentified then
 		return 0, {}
